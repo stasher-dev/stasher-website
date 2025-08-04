@@ -1,0 +1,29 @@
+{
+  "name": "stasher-website",
+  "version": "1.0.0",
+  "description": "Marketing website for Stasher deployed via Cloudflare Workers",
+  "main": "worker.ts",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "keywords": [
+    "stasher",
+    "marketing",
+    "cloudflare-worker",
+    "static-site"
+  ],
+  "author": "johnny-stasher",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stasher-dev/stasher-website.git"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20230712.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
