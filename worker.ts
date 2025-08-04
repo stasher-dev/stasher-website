@@ -21,8 +21,8 @@ const HTML = `<!DOCTYPE html>
         </div>
         
         <footer class="footer">
-            <p class="contact"><a href="mailto:johnny@stasher.dev">johnny@stasher.dev</a></p>
             <p class="privacy"><strong>Privacy statement:</strong> We use <a href="https://www.goatcounter.com/" target="_blank" rel="noopener">GoatCounter</a> to help us improve our website by collecting and reporting information on how it's used. We do not store advertising or tracking cookies. The information we collect does not identify anyone and does not track an individual's use of the site.</p>
+            <p class="contact"><a href="mailto:johnny@stasher.dev">johnny@stasher.dev</a></p>
         </footer>
     </div>
     
@@ -118,7 +118,7 @@ const CSS = `body {
 .contact {
     color: #9CDCFE;
     font-size: 14px;
-    margin: 0 0 8px 0;
+    margin: 8px 0 0 0;
     padding: 0 2px;
 }
 
