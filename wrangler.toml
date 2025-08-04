@@ -12,3 +12,11 @@ zone_name = "stasher.dev"
 [[routes]]
 pattern = "stasher.dev/*"
 zone_name = "stasher.dev"
+
+[[routes]]
+pattern = "www.stasher.dev"
+zone_name = "stasher.dev"
+
+[[routes]]
+pattern = "www.stasher.dev/*"
+zone_name = "stasher.dev"
