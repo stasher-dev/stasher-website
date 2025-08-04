@@ -62,6 +62,15 @@ const HTML = `<!DOCTYPE html>
             font-weight: bold;
         }
 
+        .privacy a {
+            color: #9CDCFE;
+            text-decoration: none;
+        }
+
+        .privacy a:hover {
+            text-decoration: underline;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .branding {
@@ -85,7 +94,7 @@ const HTML = `<!DOCTYPE html>
         </div>
         
         <footer class="footer">
-            <p class="privacy"><strong>Privacy statement:</strong> We use GoatCounter to help us improve our website by collecting and reporting information on how it's used. We do not store advertising or tracking cookies. The information we collect does not identify anyone and does not track an individual's use of the site.</p>
+            <p class="privacy"><strong>Privacy statement:</strong> We use <a href="https://www.goatcounter.com/" target="_blank" rel="noopener">GoatCounter</a> to help us improve our website by collecting and reporting information on how it's used. We do not store advertising or tracking cookies. The information we collect does not identify anyone and does not track an individual's use of the site.</p>
         </footer>
     </div>
     
