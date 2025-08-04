@@ -45,13 +45,23 @@ body {
 
 .privacy {
     color: #f1f1f1;
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.4;
     margin: 0;
+    padding: 0 2px;
 }
 
 .privacy strong {
     font-weight: bold;
+}
+
+.privacy a {
+    color: #9CDCFE;
+    text-decoration: none;
+}
+
+.privacy a:hover {
+    text-decoration: underline;
 }
 
 /* Responsive */

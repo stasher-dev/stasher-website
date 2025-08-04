@@ -2,9 +2,11 @@
   "name": "stasher-website",
   "version": "1.0.0",
   "description": "Marketing website for Stasher deployed via Cloudflare Workers",
+  "type": "module",
   "main": "worker.ts",
   "scripts": {
-    "deploy": "wrangler deploy",
+    "build": "node build.js",
+    "deploy": "npm run build && wrangler deploy",
     "dev": "wrangler dev"
   },
   "keywords": [
