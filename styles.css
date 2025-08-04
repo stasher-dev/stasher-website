@@ -18,14 +18,12 @@ body {
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    justify-content: space-between;
 }
 
 .header {
     display: flex;
     align-items: center;
-    justify-content: center;
 }
 
 .branding {
@@ -41,6 +39,21 @@ body {
     font-size: 16px;
 }
 
+.footer {
+    margin-top: auto;
+}
+
+.privacy {
+    color: #565656;
+    font-size: 11px;
+    line-height: 1.4;
+    margin: 0;
+}
+
+.privacy strong {
+    font-weight: bold;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .branding {
@@ -49,5 +62,9 @@ body {
     
     .version {
         font-size: 14px;
+    }
+    
+    .privacy {
+        font-size: 10px;
     }
 }
