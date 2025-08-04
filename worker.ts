@@ -15,7 +15,13 @@ const HTML = `<!DOCTYPE html>
             <div class="branding">stasher</div>
         </div>
         
+        <div class="bookmarklet-section">
+            <a href="javascript:(function(){var w=window.open('https://app.stasher.dev/','stasher','width=800,height=450,resizable=yes,scrollbars=no,status=no,location=no,toolbar=no,menubar=no,left='+(screen.width/2-400)+',top='+(screen.height/2-225));if(w){w.focus();}else{alert('Popup blocked - please allow popups for this site');}})();" class="bookmarklet-link">stasher</a>
+            <p class="bookmarklet-text">Click to open or drag to bookmark bar for future use</p>
+        </div>
+        
         <footer class="footer">
+            <p class="contact"><a href="mailto:johnny@stasher.dev">johnny@stasher.dev</a></p>
             <p class="privacy"><strong>Privacy statement:</strong> We use <a href="https://www.goatcounter.com/" target="_blank" rel="noopener">GoatCounter</a> to help us improve our website by collecting and reporting information on how it's used. We do not store advertising or tracking cookies. The information we collect does not identify anyone and does not track an individual's use of the site.</p>
         </footer>
     </div>
@@ -66,8 +72,63 @@ const CSS = `body {
     font-size: 16px;
 }
 
+.bookmarklet-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    justify-content: center;
+}
+
+.bookmarklet-link {
+    background-color: #9CDCFE;
+    color: #1e1e1e;
+    text-decoration: none;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: grab;
+    transition: all 0.2s ease;
+    border: none;
+}
+
+.bookmarklet-link:hover {
+    background-color: #7cc7f7;
+    transform: translateY(-1px);
+}
+
+.bookmarklet-link:active {
+    cursor: grabbing;
+    transform: translateY(0);
+}
+
+.bookmarklet-text {
+    color: #cccccc;
+    font-size: 14px;
+    margin: 0;
+    text-align: center;
+}
+
 .footer {
     margin-top: auto;
+}
+
+.contact {
+    color: #9CDCFE;
+    font-size: 14px;
+    margin: 0 0 8px 0;
+    padding: 0 2px;
+}
+
+.contact a {
+    color: #9CDCFE;
+    text-decoration: none;
+}
+
+.contact a:hover {
+    text-decoration: underline;
 }
 
 .privacy {
