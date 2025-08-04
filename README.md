@@ -1,6 +1,6 @@
 # Stasher Website
 
-Marketing website for Stasher - secure secret sharing platform.
+website for Stasher - secure secret sharing platform.
 
 ## Overview
 
@@ -13,7 +13,7 @@ Static website deployed to [stasher.dev](https://stasher.dev) showcasing the Sta
 
 - **Responsive Design** - Works on all devices
 - **Static Site** - Fast loading, minimal infrastructure
-- **Clean Marketing** - Clear value proposition and feature highlights
+- **Clean** - Clear value proposition and feature highlights
 - **Cross-Project Links** - Directs users to CLI, App, and API repos
 
 ## Deployment
@@ -32,7 +32,7 @@ stasher-website/
 ## Related Projects
 
 - **[Stasher CLI](https://github.com/stasher-dev/stasher-cli)** - Terminal version
-- **[Stasher App](https://github.com/stasher-dev/stasher-app)** - Browser interface  
+- **[Stasher App](https://github.com/stasher-dev/stasher-app)** - Secure Browser Interface  
 - **[Stasher API](https://github.com/stasher-dev/stasher-api)** - Backend API
 
 ## License
