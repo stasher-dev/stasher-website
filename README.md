@@ -18,7 +18,16 @@ Static website deployed to [stasher.dev](https://stasher.dev) showcasing the Sta
 
 ## Deployment
 
-This site is deployed via GitHub Pages or Cloudflare Pages pointing to [stasher.dev](https://stasher.dev).
+🚀 **Automated CI/CD Pipeline**
+
+This website features automated deployment via [stasher-ci](https://github.com/stasher-dev/stasher-ci):
+
+- **Automatic Deployment**: Pushes to `main` branch automatically deploy to [stasher.dev](https://stasher.dev)
+- **Cloudflare Workers**: Deployed as a high-performance edge application
+- **Build Pipeline**: TypeScript compilation, linting, and optimization
+- **Zero Downtime**: Seamless updates with Cloudflare's global network
+
+**Deployment Status**: [![CI/CD Pipeline](https://github.com/stasher-dev/stasher-website/actions/workflows/ci.yml/badge.svg)](https://github.com/stasher-dev/stasher-website/actions/workflows/ci.yml)
 
 ## Project Structure
 
