@@ -46,4 +46,4 @@ stasher-website/
 
 ## License
 
-Apache 2.0
+BUSL-1.1 - Business Source License with automatic conversion to Apache 2.0 on 2028-08-01

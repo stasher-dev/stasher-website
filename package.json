@@ -16,7 +16,7 @@
     "static-site"
   ],
   "author": "johnny-stasher",
-  "license": "MIT",
+  "license": "BUSL-1.1",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/stasher-dev/stasher-website.git"
