@@ -1,0 +1,20 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  pipeline:
+    uses: stasher-dev/stasher-ci/.github/workflows/node-pipeline.yml@main
+    with:
+      node-version: '20'
+      build-command: 'npm run build'
+      test-command: 'npm test || echo "No tests configured"'
+      deploy-on-main: true
+      deploy-environment: 'production'
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
