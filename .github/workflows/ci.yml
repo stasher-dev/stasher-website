@@ -13,7 +13,7 @@ jobs:
       node-version: '20'
       build-command: 'npm run build'
       test-command: 'npm test || echo "No tests configured"'
-      deploy-on-main: true
+      deploy-on-main: false
       deploy-environment: 'production'
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
