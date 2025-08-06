@@ -46,4 +46,4 @@ stasher-website/
 
 ## License
 
-MIT
+Apache 2.0
