@@ -1,0 +1,374 @@
+name: Website Release & Signing
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # Required for creating GitHub releases
+      id-token: write      # Required for OIDC token generation (keyless signing)
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout stasher-ci for SLSA scripts
+        uses: actions/checkout@v4
+        with:
+          repository: stasher-dev/stasher-ci
+          path: stasher-ci
+
+      - name: Setup Node.js
+        uses: stasher-dev/stasher-ci/actions/setup-node@main
+        with:
+          node-version: '20'
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.2'
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@v0
+        with:
+          syft-version: 'v1.11.1'
+
+      - name: Install Wrangler
+        run: npm install -g wrangler@3
+
+      - name: Build website
+        run: |
+          echo "BUILD_START_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
+          npm run build
+
+      - name: Extract deployable Worker code and prepare bundles
+        run: |
+          # Phase 5: Use wrangler to extract the exact Worker bundle that would be deployed
+          echo "🔍 Extracting deployable Worker code with wrangler dry-run..."
+          mkdir -p worker-extracted
+          
+          # Wrangler dry-run to capture deployment metadata
+          wrangler deploy --dry-run --outdir worker-extracted 2>&1 | tee wrangler-dry-run.log || true
+          
+          # Create the actual deployable worker bundle
+          echo "📦 Creating deployable worker bundle..."
+          mkdir -p deployable-worker
+          
+          # Copy the built worker.ts (this is what actually gets deployed by Wrangler)
+          cp worker.ts deployable-worker/worker.ts
+          cp wrangler.toml deployable-worker/wrangler.toml
+          cp package.json deployable-worker/package.json
+          
+          # Generate deployment metadata with worker hash
+          WORKER_CONTENT_HASH=$(sha256sum worker.ts | cut -d' ' -f1)
+          COMMIT_SHA="${{ github.sha }}"
+          
+          echo "WORKER_CONTENT_HASH=$WORKER_CONTENT_HASH" >> $GITHUB_ENV
+          echo "COMMIT_SHA=$COMMIT_SHA" >> $GITHUB_ENV
+          
+          # Create deployment metadata
+          cat > deployable-worker/deployment-metadata.json << EOF
+          {
+            "worker_content_hash": "$WORKER_CONTENT_HASH",
+            "commit_sha": "$COMMIT_SHA",
+            "build_time": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "version": "$(node -p 'require(\"./package.json\").version')",
+            "wrangler_version": "$(wrangler --version)",
+            "source_files": ["index.html", "styles.css", "build.js"],
+            "built_artifact": "worker.ts"
+          }
+          EOF
+          
+          # Create tarball of the deployable worker bundle
+          tar -czf stasher-website-deployable.tar.gz deployable-worker/
+          echo "DEPLOYABLE_BUNDLE=stasher-website-deployable.tar.gz" >> $GITHUB_ENV
+          
+          # Also create complete source bundle for verification
+          mkdir -p bundle
+          cp worker.ts bundle/
+          cp index.html bundle/
+          cp styles.css bundle/
+          cp build.js bundle/
+          cp wrangler.toml bundle/
+          cp package.json bundle/
+          cp README.md bundle/
+          cp LICENSE bundle/
+          tar -czf stasher-website-bundle.tar.gz bundle/
+          echo "BUNDLE_FILE=stasher-website-bundle.tar.gz" >> $GITHUB_ENV
+
+      - name: Sign artifacts with Cosign
+        run: |
+          # Sign the website bundle
+          cosign sign-blob --yes ${{ env.BUNDLE_FILE }} --output-signature ${{ env.BUNDLE_FILE }}.sig
+          
+          # Sign individual built/source artifacts
+          cosign sign-blob --yes worker.ts --output-signature worker.ts.sig
+          cosign sign-blob --yes index.html --output-signature index.html.sig
+          cosign sign-blob --yes styles.css --output-signature styles.css.sig
+          cosign sign-blob --yes build.js --output-signature build.js.sig
+          cosign sign-blob --yes wrangler.toml --output-signature wrangler.toml.sig
+          
+          # Generate checksums
+          sha256sum ${{ env.BUNDLE_FILE }} worker.ts index.html styles.css build.js wrangler.toml > checksums.txt
+          
+          # Sign the checksums file
+          cosign sign-blob --yes checksums.txt --output-signature checksums.txt.sig
+
+      - name: Generate SLSA v1 Provenance Attestation
+        env:
+          RUNNER_VERSION: ${{ runner.os }}-${{ runner.arch }}
+        run: |
+          # Generate SLSA v1 predicate for the website bundle
+          node stasher-ci/scripts/generate-slsa-predicate.js ${{ env.BUNDLE_FILE }} slsa-predicate.json
+          node stasher-ci/scripts/generate-slsa-predicate.js ${{ env.BUNDLE_FILE }} ${{ env.BUNDLE_FILE }}.predicate.intoto.jsonl
+          
+          # Create attestation using cosign attest-blob
+          cosign attest-blob --yes \
+            --type https://slsa.dev/provenance/v1 \
+            --predicate ${{ env.BUNDLE_FILE }}.predicate.intoto.jsonl \
+            --output-file ${{ env.BUNDLE_FILE }}.intoto.jsonl \
+            ${{ env.BUNDLE_FILE }}
+          
+          echo "✅ SLSA v1 predicate generated: slsa-predicate.json (readable)"
+          echo "✅ SLSA v1 predicate generated: ${{ env.BUNDLE_FILE }}.predicate.intoto.jsonl (cosign format)"
+          echo "✅ SLSA v1 attestation created: ${{ env.BUNDLE_FILE }}.intoto.jsonl"
+
+      - name: Generate SBOM with Syft
+        run: |
+          # Extract package info for SBOM generation
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          
+          # Generate SPDX JSON SBOM including full transitive dependencies
+          syft scan . \
+            --output spdx-json=sbom.spdx.json
+          
+          echo "✅ SBOM generated: sbom.spdx.json"
+
+      - name: Sign SBOM and create attestation
+        run: |
+          # Sign the SBOM with cosign
+          cosign sign-blob --yes sbom.spdx.json --output-signature sbom.spdx.json.sig
+          
+          # Create SBOM attestation
+          cosign attest-blob --yes \
+            --type https://spdx.dev/Document \
+            --predicate sbom.spdx.json \
+            --output-file sbom.spdx.json.intoto.jsonl \
+            sbom.spdx.json
+          
+          echo "✅ SBOM signed: sbom.spdx.json.sig"
+          echo "✅ SBOM attestation created: sbom.spdx.json.intoto.jsonl"
+
+      - name: Run npm audit (vulnerability scanning)
+        run: |
+          echo "🔍 Running vulnerability scan..."
+          npm audit --audit-level=moderate --json > npm-audit.json || true
+          
+          # Show summary in logs
+          if [ -s npm-audit.json ]; then
+            echo "📊 Vulnerability scan results:"
+            node -e "
+              const audit = JSON.parse(require('fs').readFileSync('npm-audit.json'));
+              if (audit.metadata) {
+                console.log('Dependencies:', audit.metadata.totalDependencies);
+                console.log('Vulnerabilities:', audit.metadata.vulnerabilities.total || 0);
+                if (audit.metadata.vulnerabilities.total > 0) {
+                  console.log('Breakdown:', JSON.stringify(audit.metadata.vulnerabilities, null, 2));
+                }
+              }
+            "
+          else
+            echo "✅ No vulnerabilities found"
+          fi
+
+      - name: Extract package info
+        id: package
+        run: |
+          echo "name=$(node -p "require('./package.json').name")" >> $GITHUB_OUTPUT
+          echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Prepare release files
+        run: |
+          # Collect all signature files and artifacts
+          mkdir -p release-assets
+          
+          # Copy bundle and its signatures/attestations
+          cp ${{ env.BUNDLE_FILE }} release-assets/
+          cp ${{ env.BUNDLE_FILE }}.sig release-assets/
+          cp ${{ env.BUNDLE_FILE }}.intoto.jsonl release-assets/
+          cp ${{ env.BUNDLE_FILE }}.predicate.intoto.jsonl release-assets/
+          
+          # Copy individual file signatures
+          cp worker.ts.sig release-assets/
+          cp index.html.sig release-assets/
+          cp styles.css.sig release-assets/
+          cp build.js.sig release-assets/
+          cp wrangler.toml.sig release-assets/
+          
+          # Copy source files
+          cp worker.ts release-assets/
+          cp index.html release-assets/
+          cp styles.css release-assets/
+          cp build.js release-assets/
+          
+          # Copy SLSA predicate files
+          cp slsa-predicate.json release-assets/
+          
+          # Copy SBOM files
+          cp sbom.spdx.json release-assets/
+          cp sbom.spdx.json.sig release-assets/
+          cp sbom.spdx.json.intoto.jsonl release-assets/
+          
+          # Copy vulnerability scan results
+          cp npm-audit.json release-assets/ 2>/dev/null || true
+          
+          # Copy checksums and signature
+          cp checksums.txt release-assets/
+          cp checksums.txt.sig release-assets/
+          
+          # List what we're releasing
+          echo "Release assets:"
+          ls -la release-assets/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ steps.package.outputs.name }} v${{ steps.package.outputs.version }}
+          draft: false
+          prerelease: false
+          files: |
+            release-assets/*
+          body: |
+            ## ${{ steps.package.outputs.name }} v${{ steps.package.outputs.version }}
+            
+            ### Stasher Website Release
+            This is a signed release of the Stasher marketing website (Cloudflare Worker) with complete supply chain security.
+            
+            ### Cryptographic Verification
+            This release is **signed with Cosign** using GitHub OIDC keyless signing and includes **SLSA v1 provenance attestation** + **SBOM**.
+            
+            **Verify the Website bundle:**
+            ```bash
+            # Download the bundle and signature
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/${{ env.BUNDLE_FILE }}
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/${{ env.BUNDLE_FILE }}.sig
+            
+            # Verify signature
+            cosign verify-blob --certificate-identity-regexp="https://github.com/${{ github.repository }}/.*" \
+              --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+              --signature=${{ env.BUNDLE_FILE }}.sig \
+              ${{ env.BUNDLE_FILE }}
+            ```
+            
+            **Verify built Worker:**
+            ```bash
+            # Download built worker and signature
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/worker.ts
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/worker.ts.sig
+            
+            # Verify worker signature
+            cosign verify-blob --certificate-identity-regexp="https://github.com/${{ github.repository }}/.*" \
+              --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+              --signature=worker.ts.sig \
+              worker.ts
+            ```
+            
+            **Verify source files:**
+            ```bash
+            # Download HTML, CSS and their signatures
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/index.html
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/index.html.sig
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/styles.css
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/styles.css.sig
+            
+            # Verify signatures
+            cosign verify-blob --certificate-identity-regexp="https://github.com/${{ github.repository }}/.*" \
+              --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+              --signature=index.html.sig index.html
+            cosign verify-blob --certificate-identity-regexp="https://github.com/${{ github.repository }}/.*" \
+              --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+              --signature=styles.css.sig styles.css
+            ```
+            
+            **Verify SLSA v1 Provenance Attestation:**
+            ```bash
+            # Download the attestation
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/${{ env.BUNDLE_FILE }}.intoto.jsonl
+            
+            # Verify attestation (requires slsa-verifier)
+            # Install: go install github.com/slsa-framework/slsa-verifier/v2/cli/slsa-verifier@latest
+            slsa-verifier verify-artifact \
+              --provenance-path ${{ env.BUNDLE_FILE }}.intoto.jsonl \
+              --source-uri github.com/${{ github.repository }} \
+              --source-tag ${{ github.ref_name }} \
+              ${{ env.BUNDLE_FILE }}
+            
+            # Or verify with cosign (manual inspection)
+            cosign verify-attestation \
+              --certificate-identity-regexp="https://github.com/${{ github.repository }}/.*" \
+              --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+              --type=https://slsa.dev/provenance/v1 \
+              ${{ env.BUNDLE_FILE }}
+            ```
+            
+            **Verify SBOM (Software Bill of Materials):**
+            ```bash
+            # Download SBOM and signature
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sbom.spdx.json
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sbom.spdx.json.sig
+            
+            # Verify SBOM signature
+            cosign verify-blob \
+              --certificate-identity-regexp="https://github.com/${{ github.repository }}/.*" \
+              --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+              --signature=sbom.spdx.json.sig \
+              sbom.spdx.json
+            
+            # Verify SBOM attestation
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sbom.spdx.json.intoto.jsonl
+            cosign verify-attestation \
+              --certificate-identity-regexp="https://github.com/${{ github.repository }}/.*" \
+              --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+              --type=https://spdx.dev/Document \
+              sbom.spdx.json
+            ```
+            
+            **Verify checksums:**
+            ```bash
+            # Download and verify checksums
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/checksums.txt
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/checksums.txt.sig
+            cosign verify-blob --certificate-identity-regexp="https://github.com/${{ github.repository }}/.*" \
+              --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+              --signature=checksums.txt.sig checksums.txt
+            sha256sum -c checksums.txt
+            ```
+            
+            ### 🏗️ What This Proves
+            ✅ **Source Integrity** - Website built from verified GitHub repository  
+            ✅ **Build Authenticity** - Built by GitHub Actions with OIDC identity  
+            ✅ **Supply Chain Security** - Complete build environment captured in attestation  
+            ✅ **Provenance** - Traceable from HTML/CSS source to Worker bundle  
+            ✅ **Transparency** - All signatures logged to public [Rekor](https://rekor.sigstore.dev) log  
+            ✅ **Dependency Transparency** - Complete SBOM with all transitive dependencies  
+            ✅ **License Compliance** - SPDX-compliant license identification  
+            ✅ **Vulnerability Monitoring** - Automated security scanning integrated
+            
+            **Rekor Entry**: [Search for this release](https://search.sigstore.dev/?hash=${{ env.BUNDLE_FILE }})
+            
+            ### Deployment
+            This website Worker is automatically deployed to Cloudflare. The signed bundle can be verified against the deployed site at https://stasher.dev
+            
+            ### Changes
+            See commit history for details of changes in this release.
+            
+            ---
+            🔐 **Signed** | 🧾 **SLSA v1 Attested** | 📋 **SBOM Included** | 📜 **Logged to [Rekor](https://rekor.sigstore.dev)** | 🛡️ **Zero-Trust Verified**

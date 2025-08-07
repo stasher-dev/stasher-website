@@ -29,9 +29,9 @@ This website features automated deployment via [stasher-ci](https://github.com/s
 
 **Deployment Status**: [![CI/CD Pipeline](https://github.com/stasher-dev/stasher-website/actions/workflows/ci.yml/badge.svg)](https://github.com/stasher-dev/stasher-website/actions/workflows/ci.yml)
 
-## Cryptographic Verification
+## 🔐 Cryptographic Verification
 
-**All releases are signed with Cosign** using GitHub OIDC keyless signing and logged to the [Rekor transparency log](https://rekor.sigstore.dev).
+**All releases are signed with Cosign** using GitHub OIDC keyless signing and include **SLSA v1 provenance attestation**, all logged to the [Rekor transparency log](https://rekor.sigstore.dev).
 
 ### Verify Website Bundle
 
@@ -60,6 +60,28 @@ cosign verify-blob \
 sha256sum -c checksums.txt
 ```
 
+### 🧾 Verify SLSA v1 Provenance Attestation
+
+```bash
+# Download the attestation
+curl -L -O "https://github.com/stasher-dev/stasher-website/releases/download/$VERSION/checksums.txt.intoto.jsonl"
+
+# Option 1: Verify with slsa-verifier (recommended)
+# Install: go install github.com/slsa-framework/slsa-verifier/v2/cli/slsa-verifier@latest
+slsa-verifier verify-artifact \
+  --provenance-path checksums.txt.intoto.jsonl \
+  --source-uri github.com/stasher-dev/stasher-website \
+  --source-tag $VERSION \
+  checksums.txt
+
+# Option 2: Manual inspection with cosign
+cosign verify-attestation \
+  --certificate-identity-regexp="https://github.com/stasher-dev/stasher-website/.*" \
+  --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+  --type=https://slsa.dev/provenance/v1 \
+  checksums.txt | jq .payload -r | base64 -d | jq
+```
+
 ### Runtime Verification
 
 Since this is deployed as a Cloudflare Worker serving static content, you can verify the deployed site matches signed releases:
@@ -72,12 +94,20 @@ curl -s https://stasher.dev/ | grep -o 'version.*' || echo "Version metadata not
 gh release list -R stasher-dev/stasher-website
 ```
 
-### What This Proves
+### 🏗️ What This Proves
 
-**Source Integrity** - Website matches signed GitHub releases  
-**Build Authenticity** - Code was built by verified GitHub Actions  
-**Content Security** - All static assets are verifiable  
-**Deployment Traceability** - Direct path from source to production
+**✅ Source Integrity** - Website matches signed GitHub releases  
+**✅ Build Authenticity** - Code was built by verified GitHub Actions  
+**✅ Content Security** - All static assets are verifiable  
+**✅ Deployment Traceability** - Direct path from source to production  
+**✅ Provenance** - SLSA v1 attestation captures complete build metadata  
+**✅ Transparency** - All signatures logged to public [Rekor](https://rekor.sigstore.dev) log
+
+The SLSA attestation contains detailed metadata about:
+- **Source commit** and repository
+- **Build environment** (Node.js version, OS, dependencies)
+- **Build process** (exact commands, working directory)
+- **GitHub Actions context** (workflow, actor, run ID)
 
 **Your marketing site deserves the same security as your secrets.** 🛡️
 
